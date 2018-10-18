@@ -1,19 +1,22 @@
 #include "SemiNBody.h"
 #define NDIM 4
 #define INDX(ROW,COL) NDIM * ROW + COL
-void update_particle_megno(Particle * particle,double * delta_dot , const double t, const double dt){
+void update_particle_megno(Particle * particle , const double t, const double dt){
 	PhaseState * state = &(particle->state);
 	MEGNO_Auxilary_Variables m1 = (particle->megno);
 	double delta[NDIM]  = {state->dlambda,state->dY,state->dLambda,state->dX};
+	double delta_dot[NDIM]  = {state->dlambda_dot,state->dY_dot,state->dLambda_dot,state->dX_dot};
 	double deltaSq = 0;
-	double deltad_delta=0;
+	double deltad_delta_dt=0 ;
+	const double t1 = t + dt;
 	for(int i=0;i<NDIM;i++){
 		deltaSq += delta[i] * delta[i];
-		deltad_delta += delta[i] * delta_dot[i];
+		deltad_delta_dt += delta[i] * delta_dot[i] * dt;
 	};
-	(particle->megno).Y = m1.Y + deltad_delta / deltaSq * t * dt;
-	(particle->megno).W = m1.W + dt * 2 * m1.Y / t;
-	(particle->megno).megno = m1.W / t;
+
+	(particle->megno).Y = m1.Y + deltad_delta_dt / deltaSq * t1 ;
+	(particle->megno).W = m1.W + dt * 2 * (particle->megno).Y  / t1 ;
+	(particle->megno).megno = (particle->megno).W / t1;
 }
 void kepler_step_particle(Particle * particle,const double t, const double dt){
 	PhaseState * state = &(particle->state);
@@ -23,8 +26,6 @@ void kepler_step_particle(Particle * particle,const double t, const double dt){
 	const double dl_dot = -3 * l_dot * dL / L;
 	(state->lambda) += l_dot * dt;
 	(state->dlambda) += dl_dot * dt;
-	double delta_dot[4] = {dl_dot,0,0,0};
-	update_particle_megno(particle,delta_dot,t,dt);
 	
 }
 void particles_kepler_step(Simulation * sim,const double dt){
@@ -90,8 +91,6 @@ void interaction_step(Simulation * sim, const double dt){
 	// NOTE 'calloc' ensures intial values are all zero!!
 	double * derivs = (double *)malloc(NDIM * sizeof(double));
 	double * jac = (double *)malloc(NDIM * NDIM * sizeof(double));
-	fill_zeroes(derivs,NDIM);
-	fill_zeroes(jac,NDIM*NDIM);
 	double * planet_derivs = (double *)malloc(NDIM * sizeof(double));
 	double * planet_jac = (double *)malloc(NDIM * NDIM * sizeof(double));
 	
@@ -118,6 +117,9 @@ void interaction_step(Simulation * sim, const double dt){
 		delta_vars[2]=particle_state->dLambda;
 		delta_vars[3]=particle_state->dX;
 
+		fill_zeroes(derivs,NDIM);
+		fill_zeroes(jac,NDIM*NDIM);
+		
 		for(int j=0;j<Nplanet;j++ ){
 			planet_state = &( ((sim->planets)+j)->state);
 			mu = ((sim->planets)+j)->mu;
@@ -140,9 +142,6 @@ void interaction_step(Simulation * sim, const double dt){
 		particle_state->X      = vars[3];   particle_state->dX      = delta_vars[3];
 		update_particle_state(particle_state,vars,delta_vars,derivs,jac, 0.5 * dt);
 
-		double delta_dot[NDIM];
-		fill_delta_dot_from_jacobian(delta_dot,particle_state,jac);
-		update_particle_megno(particle, delta_dot, sim->t + dt, dt);
 	}	
 
 	free(derivs); 
@@ -150,10 +149,81 @@ void interaction_step(Simulation * sim, const double dt){
 	free(planet_derivs);
 	free(planet_jac);
 };
+void simple_pendulum_step(Simulation * sim, const double dt){
+	const int Nparticle = sim->N_particles;
+	// a simple additional perturbation of the form:
+	//  cos(lambda - t)
+	double l,L,Delta_L,dl;
+	const double t = sim->t;
+	const double t1 = t + dt;
+	Particle * particle;
+	for(int i=0; i<Nparticle; i++){
+		particle = (sim->particles + i);
+		l = (particle->state).lambda;
+		L = (particle->state).Lambda;
+		dl = (particle->state).dlambda;
+		Delta_L =  cos(l-t1) - cos(l-t);
+		(particle->state).Lambda = L + Delta_L;
+		(particle->state).dLambda += dl * (sin(l-t)-sin(l-t1));
+	}
+}
+void get_var_dot(Simulation * sim){
+	
+	double L ;
+	double dL;
+	double L4;
+	
+	double * derivs = (double *)malloc(NDIM * sizeof(double));
+	double * jac = (double *)malloc(NDIM * NDIM * sizeof(double));
+	double * planet_derivs = (double *)malloc(NDIM * sizeof(double));
+	double * planet_jac = (double *)malloc(NDIM * NDIM * sizeof(double));
+	
+	Particle * particle;
+	PhaseState * particle_state;
+	CartesianPhaseStateSimple * planet_state;
+	double mu;
+	const int Nparticle = sim->N_particles;
+	const int Nplanet = sim->N_planets;
+	double delta_dot[NDIM];
+	// loop over particles
+	for(int i=0; i<Nparticle;i++){
 
+		particle = sim->particles + i;
+		particle_state = &(particle->state);
+
+		fill_zeroes(derivs,NDIM);
+		fill_zeroes(jac,NDIM*NDIM);
+		 
+		// sum over perturbing planets	
+		for(int j=0;j<Nplanet;j++ ){
+			planet_state = &( ((sim->planets)+j)->state);
+			mu = ((sim->planets)+j)->mu;
+			interaction_derivs(particle_state,planet_state,planet_derivs,planet_jac);
+			add_derivs_and_jacobians(derivs,jac,planet_derivs,planet_jac,mu);
+		}	
+		fill_delta_dot_from_jacobian( delta_dot, particle_state, jac) ;
+		
+		L = particle_state->Lambda;
+		L4 = L*L*L*L;
+		dL = particle_state->dLambda;
+
+		particle_state->dlambda_dot = delta_dot[0] - 3 * dL / L4;
+		particle_state->dY_dot = delta_dot[1];
+		particle_state->dLambda_dot = delta_dot[2];
+		particle_state->dX_dot = delta_dot[3];
+	}
+	free(derivs); 
+	free(jac);
+	free(planet_derivs);
+	free(planet_jac);
+}
 void simulation_step(Simulation * sim, const double dt){
+	
 	kepler_step( sim, 0.5 * dt);
-	interaction_step( sim, dt);
+	interaction_step(sim,dt);
 	kepler_step( sim, 0.5 * dt);
+
+	get_var_dot(sim);
+	update_particle_megno((sim->particles), sim->t ,dt);
 	sim->t += dt;
 }
