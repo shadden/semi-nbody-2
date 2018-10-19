@@ -12,7 +12,7 @@ void initialize_megno_vars(MEGNO_Auxilary_Variables * megno){
 
 void initialize_phase_state(PhaseState * Z,double a, double l, double e, double pomega){
 	Z->Lambda=sqrt(a);
-	Z->lambda=l;
+	Z->lmbda=l;
 	Z->X = e * cos(pomega);
 	Z->Y = e * sin(-1 * pomega);
 	// generate random reals	
@@ -24,7 +24,7 @@ void initialize_phase_state(PhaseState * Z,double a, double l, double e, double 
 	}
 	const double EPS = 1.e-14;
 	Z->dLambda = EPS*dvec[0]/sqrt(normsq);
-	Z->dlambda = EPS*dvec[1]/sqrt(normsq);
+	Z->dlmbda = EPS*dvec[1]/sqrt(normsq);
 	Z->dX = EPS*dvec[2]/sqrt(normsq);
 	Z->dY = EPS*dvec[3]/sqrt(normsq);
 }

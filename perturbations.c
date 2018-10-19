@@ -3,10 +3,10 @@
 #define NDIM 4
 #define INDX(ROW,COL) NDIM * ROW + COL
 
-void orbel_to_rtheta(const double a,const double lambda, const double e, const double pomega, double * r, double * theta){
-	const double M = lambda - pomega;
+void orbel_to_rtheta(const double a,const double lmbda, const double e, const double pomega, double * r, double * theta){
+	const double M = lmbda - pomega;
 	*(r) = a * (1 + e * cos(M));
-	*(theta) = lambda + 2 * e * sin(M);
+	*(theta) = lmbda + 2 * e * sin(M);
 }
 
 
@@ -19,30 +19,30 @@ void interaction_derivs(PhaseState * particle_state, CartesianPhaseStateSimple *
 	// test-particle orbit
 	const double ex = p1.X ;
 	const double ey = p1.Y ;
-	const double lambda = p1.lambda ;
-	const double cosl = cos(lambda) ;
-	const double sinl = sin(lambda) ;
+	const double lmbda = p1.lmbda ;
+	const double cosl = cos(lmbda) ;
+	const double sinl = sin(lmbda) ;
 	const double a = p1.Lambda * p1.Lambda;
 	const double r = a * (1 - ex*cosl + ey * sinl) ;
-	const double theta = lambda + 2 * sinl * ex + 2 * cosl * ey ;
+	const double theta = lmbda + 2 * sinl * ex + 2 * cosl * ey ;
 
 	// derivatives
-	const double dr_dlambda = a * ( ex*sinl + ey * cosl );
+	const double dr_dlmbda = a * ( ex*sinl + ey * cosl );
 	const double dr_dLambda = 2 * r / p1.Lambda;
 	const double dr_dX = -1 * a * cosl;
 	const double dr_dY =      a * sinl;
-	const double dtheta_dlambda = 1 + 2 * ex * cosl - 2 * ey * sinl;
+	const double dtheta_dlmbda = 1 + 2 * ex * cosl - 2 * ey * sinl;
 	const double dtheta_dLambda = 0;
 	const double dtheta_dX = 2 * sinl;
 	const double dtheta_dY = 2 * cosl;
 
-	const double Dr[4] = {dr_dlambda,dr_dY,dr_dLambda,dr_dX};
-	const double Dtheta[4] = {dtheta_dlambda,dtheta_dY,dtheta_dLambda,dtheta_dX};
+	const double Dr[4] = {dr_dlmbda,dr_dY,dr_dLambda,dr_dX};
+	const double Dtheta[4] = {dtheta_dlmbda,dtheta_dY,dtheta_dLambda,dtheta_dX};
 	// 2nd derivatives
 	// r
 	const double d2r_dldl = a - r;
 	const double d2r_dldY = a * cosl;
-	const double d2r_dldL = 2 * dr_dlambda / p1.Lambda;
+	const double d2r_dldL = 2 * dr_dlmbda / p1.Lambda;
 	const double d2r_dldX = a * sinl;
 
 	const double d2r_dYdY = 0.;
@@ -55,7 +55,7 @@ void interaction_derivs(PhaseState * particle_state, CartesianPhaseStateSimple *
 	const double d2r_dXdX = 0;
 
 	// theta
-	const double d2theta_dldl = lambda - theta;
+	const double d2theta_dldl = lmbda - theta;
 	const double d2theta_dldY = -2 * sinl;
 	const double d2theta_dldL =  0.;
 	const double d2theta_dldX =  2 * cosl;
