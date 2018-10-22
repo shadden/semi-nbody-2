@@ -1,6 +1,6 @@
 #include "SemiNBody.h"
-#define NDIM 4
-#define INDX(ROW,COL) NDIM * ROW + COL
+#define TEST 1
+#define MU 1.0e-4
 void update_particle_megno(Particle * particle , const double t, const double dt){
 	PhaseState * state = &(particle->state);
 	MEGNO_Auxilary_Variables m1 = (particle->megno);
@@ -18,6 +18,7 @@ void update_particle_megno(Particle * particle , const double t, const double dt
 	(particle->megno).W = m1.W + dt * 2 * (particle->megno).Y  / t1 ;
 	(particle->megno).megno = (particle->megno).W / t1;
 }
+
 void kepler_step_particle(Particle * particle,const double t, const double dt){
 	PhaseState * state = &(particle->state);
 	const double L = state->Lambda;
@@ -37,16 +38,22 @@ void particles_kepler_step(Simulation * sim,const double dt){
 	}
 }
 
+void resonance_drift_advance(ResonancePerturbation * res, const double dt){
+	res->lmbda += (res->mean_motion) * dt;
+}
+
 void kepler_step(Simulation * sim, const double dt){
 	
-	const int N = sim->N_planets;
-	for(int i=0; i<N;i++){
+	const int N_pl = sim->N_planets;
+	for(int i=0; i<N_pl;i++){
 		kepler_2D_advance_simple(&((sim->planets + i)->state),dt);
+	}
+	const int N_res = sim->N_resonance;
+	for(int i=0; i<N_res;i++){
+		resonance_drift_advance((sim->resonances + i),dt);
 	}
 	particles_kepler_step(sim,dt);
 }
-
-
 
 void add_derivs_and_jacobians(double * tot_deriv, double * tot_jac, double * deriv, double * jac, double mu){
 	for(int i=0;i<NDIM;i++){
@@ -56,6 +63,7 @@ void add_derivs_and_jacobians(double * tot_deriv, double * tot_jac, double * der
 		}
 	}
 }
+
 void update_particle_state(PhaseState * state,double* vars,double* delta_vars, double* derivs, double* jac, const double dt){
 	state->lmbda = vars[0] + derivs[0] * dt;
 	state->Y      = vars[1] + derivs[1] * dt;
@@ -101,9 +109,9 @@ void interaction_step(Simulation * sim,const double dt){
 	double mu;
 	const int Nparticle = sim->N_particles;
 	const int Nplanet = sim->N_planets;
+	const int Nres = sim->N_resonance;
 	double vars[NDIM],delta_vars[NDIM];
 	// loop over particles
-	
 	for(int i=0; i<Nparticle;i++){
 		// sum over perturbing planets
 		particle = sim->particles + i;
@@ -120,22 +128,32 @@ void interaction_step(Simulation * sim,const double dt){
 
 		fill_zeroes(derivs,NDIM);
 		fill_zeroes(jac,NDIM*NDIM);
-		
+		// Planets #1
 		for(int j=0;j<Nplanet;j++ ){
 			planet_state = &( ((sim->planets)+j)->state);
 			mu = ((sim->planets)+j)->mu;
 			interaction_derivs(particle_state,planet_state,planet_derivs,planet_jac);
 			add_derivs_and_jacobians(derivs,jac,planet_derivs,planet_jac,mu);
+		}	
+		// Resonances #1
+		for(int j=0;j<Nres;j++ ){
+			add_resonance_derivs(particle_state,(sim->resonances + j),derivs,jac);
 		}	
 
 		update_particle_state(particle_state,vars,delta_vars,derivs,jac,dt);
 
+		// Planets #2
 		for(int j=0;j<Nplanet;j++ ){
 			planet_state = &( ((sim->planets)+j)->state);
 			mu = ((sim->planets)+j)->mu;
 			interaction_derivs(particle_state,planet_state,planet_derivs,planet_jac);
 			add_derivs_and_jacobians(derivs,jac,planet_derivs,planet_jac,mu);
 		}	
+		// Resonances #2
+		for(int j=0;j<Nres;j++ ){
+			add_resonance_derivs(particle_state,(sim->resonances + j),derivs,jac);
+		}	
+
 		// Reset particle and then update with average of two derivs added together
 		particle_state->lmbda = vars[0];   particle_state->dlmbda = delta_vars[0];
 		particle_state->Y      = vars[1];   particle_state->dY      = delta_vars[1];
@@ -184,6 +202,7 @@ void get_var_dot(Simulation * sim){
 	CartesianPhaseStateSimple * planet_state;
 	double mu;
 	const int Nparticle = sim->N_particles;
+	const int Nres= sim->N_resonance;
 	const int Nplanet = sim->N_planets;
 	double delta_dot[NDIM];
 	// loop over particles
@@ -202,6 +221,11 @@ void get_var_dot(Simulation * sim){
 			interaction_derivs(particle_state,planet_state,planet_derivs,planet_jac);
 			add_derivs_and_jacobians(derivs,jac,planet_derivs,planet_jac,mu);
 		}	
+		// sum over perturbing resonances
+		for(int j=0;j<Nres;j++ ){
+			add_resonance_derivs(particle_state,(sim->resonances + j),derivs,jac);
+		}	
+
 		fill_delta_dot_from_jacobian( delta_dot, particle_state, jac) ;
 		
 		L = particle_state->Lambda;

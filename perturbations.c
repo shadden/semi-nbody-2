@@ -1,14 +1,11 @@
 #include "SemiNBody.h"
 #define RT2 1.414213562373095
-#define NDIM 4
-#define INDX(ROW,COL) NDIM * ROW + COL
 
 void orbel_to_rtheta(const double a,const double lmbda, const double e, const double pomega, double * r, double * theta){
 	const double M = lmbda - pomega;
 	*(r) = a * (1 + e * cos(M));
 	*(theta) = lmbda + 2 * e * sin(M);
 }
-
 
 void interaction_derivs(PhaseState * particle_state, CartesianPhaseStateSimple * planet_state, double * derivs, double * jac){
 	const PhaseState p1 = *(particle_state);

@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS= -std=c99 -O3 -fPIC -Wall  
 
-SOURCES=perturbations.c kepler_solve.c integration_steps.c initialization.c
+SOURCES=perturbations.c kepler_solve.c integration_steps.c initialization.c resonant_interactions.c LaplaceCoefficients.c
 OBJECTS=$(SOURCES:.c=.o)
 
 all: $(OBJECTS)

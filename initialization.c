@@ -28,3 +28,13 @@ void initialize_phase_state(PhaseState * Z,double a, double l, double e, double 
 	Z->dX = EPS*dvec[2]/sqrt(normsq);
 	Z->dY = EPS*dvec[3]/sqrt(normsq);
 }
+
+void initialize_resonance_multiplet(Resonance * res, bool inner_Q, int j, int k,double alpha){
+	for(int l=0;l<k+1;l++){
+		(res+l)->inner_perturber_Q = inner_Q;
+		(res+l)->j=j;
+		(res+l)->k=k;
+		(res+l)->l=l;
+		(res+l)->fCoeff = GeneralOrderCoefficient(j,k,l,alpha);
+	}
+}
