@@ -28,6 +28,12 @@ void initialize_phase_state(PhaseState * Z,double a, double l, double e, double 
 	Z->dX = EPS*dvec[2]/sqrt(normsq);
 	Z->dY = EPS*dvec[3]/sqrt(normsq);
 }
+void initialize_particle(Particle * particle,double a, double l, double e, double pomega)
+{
+	//particle = (Particle *) malloc(sizeof(Particle));
+	initialize_megno_vars(&(particle->megno));
+	initialize_phase_state(&(particle->state), a,l,e,pomega);
+}
 
 void initialize_resonance_multiplet(Resonance * res, bool inner_Q, int j, int k,double alpha){
 	for(int l=0;l<k+1;l++){
@@ -37,4 +43,11 @@ void initialize_resonance_multiplet(Resonance * res, bool inner_Q, int j, int k,
 		(res+l)->l=l;
 		(res+l)->fCoeff = GeneralOrderCoefficient(j,k,l,alpha);
 	}
+}
+void initialize_simulation(Simulation * sim){
+	sim =(Simulation *) malloc(sizeof(Simulation));
+	sim->N_planets = 0;
+	sim->N_particles=0;
+	sim->t=0;
+	sim->dt=0;
 }
