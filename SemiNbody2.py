@@ -35,25 +35,83 @@ class Particle(Structure):
     _fields_ = [("state",PhaseState),("megno",MEGNO_Auxilary_Variables)]
 class Resonance(Structure):
     _fields_ = [("inner_perturber_Q",c_bool),("j",c_int),("k",c_int),("l",c_int),("fCoeff",c_double)]
+
+initialize_resonance_multiplet = clib.initialize_resonance_multiplet
+initialize_resonance_multiplet.argtypes = [POINTER(Resonance),c_bool,c_int,c_int,c_double]
+initialize_resonance_multiplet.restype = None
+
 class ResonancePerturbation(Structure):
     _fields_ = [("e",c_double),("lmbda",c_double),("pomega",c_double),("mean_motion",c_double),("mu",c_double),\
                ("N_resonances",c_int),("resonances",POINTER(Resonance))]
+
+    def __init__(self,mu=0.,mean_motion=1.,ecc=0.,lmbda=0.,pomega=0.):
+        self.mu=mu
+        self.mean_motion = mean_motion
+        self.e = ecc
+        self.lmbda = lmbda
+        self.pomega= pomega
+        self.N_resonances=0
+
+    def add_multiplet(self,j,k,innerQ):
+        
+        subresonances = ((k+1) * Resonance)()
+        alpha = (self.mean_motion)**(-2/3.)
+        if alpha>1:
+            alpha=1/alpha
+
+        initialize_resonance_multiplet(pointer(subresonances[0]), innerQ, j, k, alpha)
+        
+        self.N_resonances += k+1
+        N = (self.N_resonances)
+        new_arr = (N * Resonance)()
+
+        for i in range(N):
+            if i < N-k-1:
+                new_arr[i] = self.resonances[i]
+            else:
+                new_arr[i] = subresonances[i-k-1]
+
+        self.resonances = pointer(new_arr[0])
+
+        
+    @classmethod 
+    def multiplet(cls,j,k,innerQ,mu,mean_motion,e,lmbda,pomega):
+        self = cls()
+        self.e=e
+        self.lmbda = lmbda
+        self.pomega = pomega
+        self.mu = mu
+        self.mean_motion = mean_motion
+        subresonances = ((k+1) * Resonance)()
+        self.resonances = pointer(subresonances[0])
+        self.N_resonances = k+1
+        alpha = (mean_motion)**(-2/3.)
+        if alpha>1:
+            alpha=1/alpha
+        initialize_resonance_multiplet(self.resonances,innerQ,j,k,alpha)
+
+        return self
 
 initialize_particle=clib.initialize_particle
 initialize_particle.argtypes = [POINTER(Particle),c_double,c_double,c_double,c_double]
 initialize_particle.restype = None
 from scipy.optimize import brentq
+
 def alew2xv(a,l,e,w):
-    E = 0.5 / a
-    hsq = a * (1 - e*e)
     M = np.mod(l - w,2 * np.pi)
     f = lambda u: M - u + e * np.sin(u)
     u = brentq(f,0,2*np.pi)
     _x = a * (np.cos(u) - e)
     _y = a * np.sqrt(1 - e*e) * np.sin(u)
+    n = a**(-1.5)
     du_dt  = n / (1 - e * np.cos(u))
-    _vx = 
-    _vy = 
+
+    _vx = -1 * a * np.sin(u) * du_dt
+    _vy = a * np.sqrt(1 - e*e) * np.cos(u) * du_dt
+    c = np.cos(w)
+    s = np.sin(w)
+    R = np.array([[c,-s],[s,c]])
+    return np.append( R.dot([_x,_y]),R.dot([_vx,_vy]) )
 
 class Simulation(Structure):
     def __init__(self):
@@ -72,14 +130,31 @@ class Simulation(Structure):
     def add_planet(self,mu=0,a=1.,l=0.,e=0.,w=0.):
         self.N_planets+=1
         N = self.N_planets
-
         # Better way to do this??
-        new_array = (N * Particle)()
+        new_array = (N * Planet)()
         for i in range(N-1):
             new_array[i] = self.planets[i]
+
         xv = alew2xv(a,l,e,w)
         self.planets = pointer(new_array[0])
+        init_planet(self.planets[N-1],mu,*xv)
 
+    def add_resonance_perturbation(self,resonance):
+        assert type(resonance) is ResonancePerturbation, "Argument 'resonance' is not a ResonancePerturbation object."
+        self.N_resonance+=1
+        N = self.N_resonance
+        # Better way to do this??
+        new_array = (N * ResonancePerturbation)()
+        for i in range(N-1):
+            new_array[i] = self.resonances[i]
+        new_array[N-1]=resonance
+        self.resonances = pointer(new_array[0])
+
+    def integrate(self,time):
+        if self.dt != 0.:
+            integrate_simulation(pointer(self),time)
+        else:
+            print("No integration done! Timestep must be set.")
 #
 Simulation._fields_ = [
         ("N_planets",c_int),
@@ -93,7 +168,10 @@ Simulation._fields_ = [
         ]
 
 
-# initialize_phase_state(PhaseState * Z,double a, double l, double e, double pomega)
+integrate_simulation = clib.integrate_simulation
+integrate_simulation.argtypes=[POINTER(Simulation),c_double]
+integrate_simulation.restype=None
+
 initialize_phase_state = clib.initialize_phase_state
 initialize_phase_state.argtypes=[POINTER(PhaseState),c_double,c_double,c_double,c_double]
 initialize_phase_state.restype=None
