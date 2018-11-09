@@ -3,11 +3,13 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
+os.chdir(os.path.abspath(os.path.dirname(__file__)))
+
 def ctypes_array_resize(array, new_size):
     resize(array, sizeof(array._type_)*new_size)
     return (array._type_*new_size).from_address(addressof(array))
 
-clib = CDLL("/Users/shadden/Projects/SemiNbody2/libSemiNbody.so")
+clib = CDLL(os.path.join(os.getcwd(), "libSemiNbody.so"))
 
 def get_ctype_ptr(dtype,dim,**kwargs):
     return np.ctypeslib.ndpointer(dtype=dtype,ndim=dim,flags='CONTIGUOUS',**kwargs)
@@ -52,24 +54,26 @@ class ResonancePerturbation(Structure):
         self.pomega= pomega
         self.N_resonances=0
 
-    def add_multiplet(self,j,k,innerQ):
-        
+    def add_multiplet(self,j,k,a=1.):
         subresonances = ((k+1) * Resonance)()
-        alpha = (self.mean_motion)**(-2/3.)
+        alpha = (self.mean_motion)**(-2/3.) / a
         if alpha>1:
             alpha=1/alpha
+            innerQ=False
+        else:
+            innerQ=True
 
         initialize_resonance_multiplet(pointer(subresonances[0]), innerQ, j, k, alpha)
         
         self.N_resonances += k+1
         N = (self.N_resonances)
         new_arr = (N * Resonance)()
-
+        
         for i in range(N):
             if i < N-k-1:
                 new_arr[i] = self.resonances[i]
             else:
-                new_arr[i] = subresonances[i-k-1]
+                new_arr[i] = subresonances[i - (N-k-1)]
 
         self.resonances = pointer(new_arr[0])
 
