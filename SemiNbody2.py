@@ -54,14 +54,12 @@ class ResonancePerturbation(Structure):
         self.pomega= pomega
         self.N_resonances=0
 
-    def add_multiplet(self,j,k,a=1.):
+    def add_multiplet(self,j,k,innerQ):
         subresonances = ((k+1) * Resonance)()
-        alpha = (self.mean_motion)**(-2/3.) / a
+        alpha = (self.mean_motion)**(-2/3.) 
         if alpha>1:
             alpha=1/alpha
-            innerQ=False
         else:
-            innerQ=True
 
         initialize_resonance_multiplet(pointer(subresonances[0]), innerQ, j, k, alpha)
         
