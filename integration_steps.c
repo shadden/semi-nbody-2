@@ -262,7 +262,7 @@ void integrate_simulation(Simulation * sim, const double t_stop){
 		sim->dt = -1 * dt;
 		dt = -1 * dt;
 	}
-	const int Nstep = (int) delta_t / dt;
+	const int Nstep = (int) (delta_t / dt);
 	for(int i=0; i<Nstep;i++){
 		simulation_step(sim);
 	}
