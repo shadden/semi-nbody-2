@@ -59,8 +59,7 @@ class ResonancePerturbation(Structure):
         alpha = (self.mean_motion)**(-2/3.) 
         if alpha>1:
             alpha=1/alpha
-        else:
-
+            
         initialize_resonance_multiplet(pointer(subresonances[0]), innerQ, j, k, alpha)
         
         self.N_resonances += k+1
